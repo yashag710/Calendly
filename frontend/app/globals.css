@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 33% 98%;
+  --foreground: 209 78% 19%;
+  --card: 0 0% 100%;
+  --card-foreground: 209 78% 19%;
+  --primary: 215 100% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 213 47% 96%;
+  --secondary-foreground: 209 78% 19%;
+  --muted: 213 47% 96%;
+  --muted-foreground: 213 25% 52%;
+  --accent: 213 47% 96%;
+  --accent-foreground: 209 78% 19%;
+  --destructive: 4 74% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 211 38% 91%;
+  --input: 211 38% 91%;
+  --ring: 215 100% 50%;
+  --radius: 0.625rem;
+}
+
+* {
+  @apply border-border;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-background font-sans text-foreground antialiased;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  letter-spacing: 0;
+}
+
+::selection {
+  @apply bg-blue-100 text-calendly-navy;
+}

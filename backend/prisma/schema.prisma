@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id          String                 @id @default(cuid())
+  name        String
+  email       String                 @unique
+  timezone    String                 @default("Asia/Kolkata")
+  eventTypes  EventType[]
+  schedules   AvailabilitySchedule[]
+  bookings    Booking[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+}
+
+model EventType {
+  id                 String                @id @default(cuid())
+  userId             String
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleId         String?
+  schedule           AvailabilitySchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  name               String
+  slug               String                @unique
+  color              String                @default("#8247f5")
+  description        String?
+  location           String                @default("Google Meet")
+  durationMinutes    Int
+  bufferBeforeMinutes Int                  @default(0)
+  bufferAfterMinutes  Int                  @default(0)
+  isActive           Boolean               @default(true)
+  customQuestions    CustomQuestion[]
+  bookings           Booking[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([userId])
+}
+
+model AvailabilitySchedule {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  timezone  String
+  isDefault Boolean            @default(false)
+  rules     AvailabilityRule[]
+  overrides DateOverride[]
+  eventTypes EventType[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+model AvailabilityRule {
+  id         String               @id @default(cuid())
+  scheduleId String
+  schedule   AvailabilitySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+
+  @@index([scheduleId, dayOfWeek])
+}
+
+model DateOverride {
+  id          String               @id @default(cuid())
+  scheduleId  String
+  schedule    AvailabilitySchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  date        DateTime
+  isAvailable Boolean              @default(true)
+  startTime   String?
+  endTime     String?
+
+  @@unique([scheduleId, date])
+  @@index([scheduleId])
+}
+
+model CustomQuestion {
+  id          String      @id @default(cuid())
+  eventTypeId String
+  eventType   EventType   @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  label       String
+  required    Boolean     @default(false)
+  answers     BookingAnswer[]
+  createdAt   DateTime    @default(now())
+}
+
+model Booking {
+  id              String          @id @default(cuid())
+  eventTypeId     String
+  eventType       EventType       @relation(fields: [eventTypeId], references: [id], onDelete: Restrict)
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  inviteeName     String
+  inviteeEmail    String
+  startTime       DateTime
+  endTime         DateTime
+  timezone        String
+  status          BookingStatus   @default(CONFIRMED)
+  cancellationReason String?
+  rescheduleToken String          @unique @default(cuid())
+  answers         BookingAnswer[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([eventTypeId, startTime, status])
+  @@index([userId, startTime])
+  @@index([eventTypeId, startTime])
+}
+
+model BookingAnswer {
+  id         String         @id @default(cuid())
+  bookingId  String
+  booking    Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  questionId String
+  question   CustomQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answer     String
+
+  @@unique([bookingId, questionId])
+}

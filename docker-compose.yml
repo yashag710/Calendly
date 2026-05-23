@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: calendly_clone_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: calendly
+      POSTGRES_PASSWORD: calendly
+      POSTGRES_DB: calendly_clone
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U calendly -d calendly_clone"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
