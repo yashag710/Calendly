@@ -18,6 +18,7 @@ import {
 import { api } from "@/lib/api";
 import type { AvailabilityRule, DateOverride, EventType, Schedule } from "@/types";
 import { Button } from "@/components/ui/button";
+import { CalendlyShimmer } from "@/components/CalendlyShimmer";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -53,27 +54,33 @@ export default function AvailabilityPage() {
   const [view, setView] = useState<"list" | "calendar">("list");
   const [menuOpen, setMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const activeEventCount = eventTypes.filter((eventType) => eventType.scheduleId === selectedId).length;
 
   async function load() {
-    const [data, events] = await Promise.all([
-      api<Schedule[]>("/availability"),
-      api<EventType[]>("/event-types")
-    ]);
-    setSchedules(data);
-    setEventTypes(events);
-    const nextSelected = selectedId && data.some((schedule) => schedule.id === selectedId) ? selectedId : data[0]?.id ?? "";
-    setSelectedId(nextSelected);
-    const selectedSchedule = data.find((schedule) => schedule.id === nextSelected) ?? data[0];
-    if (selectedSchedule) {
-      setDraft({
-        name: selectedSchedule.name,
-        timezone: selectedSchedule.timezone,
-        isDefault: selectedSchedule.isDefault,
-        rules: selectedSchedule.rules,
-        overrides: selectedSchedule.overrides.map((item) => ({ ...item, date: String(item.date).slice(0, 10) }))
-      });
+    setLoading(true);
+    try {
+      const [data, events] = await Promise.all([
+        api<Schedule[]>("/availability"),
+        api<EventType[]>("/event-types")
+      ]);
+      setSchedules(data);
+      setEventTypes(events);
+      const nextSelected = selectedId && data.some((schedule) => schedule.id === selectedId) ? selectedId : data[0]?.id ?? "";
+      setSelectedId(nextSelected);
+      const selectedSchedule = data.find((schedule) => schedule.id === nextSelected) ?? data[0];
+      if (selectedSchedule) {
+        setDraft({
+          name: selectedSchedule.name,
+          timezone: selectedSchedule.timezone,
+          isDefault: selectedSchedule.isDefault,
+          rules: selectedSchedule.rules,
+          overrides: selectedSchedule.overrides.map((item) => ({ ...item, date: String(item.date).slice(0, 10) }))
+        });
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -180,7 +187,11 @@ export default function AvailabilityPage() {
             </div>
           </div>
 
-          <section className="overflow-hidden rounded-lg border border-[#d7e2ee] bg-white">
+          {loading ? (
+            <section className="grid min-h-[520px] place-items-center overflow-hidden rounded-lg border border-[#d7e2ee] bg-white">
+              <CalendlyShimmer />
+            </section>
+          ) : <section className="overflow-hidden rounded-lg border border-[#d7e2ee] bg-white">
             <div className="border-b border-[#d7e2ee] px-4 py-7 sm:px-8 sm:py-9">
               <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                 <div>
@@ -250,8 +261,8 @@ export default function AvailabilityPage() {
               </div>}
             </div>
 
-            {view === "list" ? <div className="overflow-x-auto">
-              <div className="grid min-h-[520px] min-w-[1240px] gap-12 px-4 py-7 pr-12 sm:px-8 sm:py-9 sm:pr-16 xl:grid-cols-[minmax(640px,0.9fr)_minmax(520px,1fr)]">
+            {view === "list" ? <div>
+              <div className="grid min-h-[520px] min-w-[1240px] gap-5 px-4 py-7 pr-12 sm:px-8 sm:py-9 sm:pr-16 xl:grid-cols-[minmax(640px,0.9fr)_minmax(520px,1fr)]">
               <section>
                 <div className="mb-7 flex items-start gap-3">
                   <Clock3 className="mt-1 size-5 text-[#0b3558]" />
@@ -413,7 +424,7 @@ export default function AvailabilityPage() {
                 {saving ? "Saving..." : "Save schedule"}
               </Button>
             </div>
-          </section>
+          </section>}
         </div>
     </main>
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CheckCircle2, RotateCcw } from "lucide-react";
+import { CalendlyShimmer } from "@/components/CalendlyShimmer";
 import { CalendlyLogo } from "@/components/CalendlyLogo";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/date";
@@ -14,9 +15,10 @@ import { Card, CardContent } from "@/components/ui/card";
 export default function ConfirmationPage() {
   const params = useParams<{ id: string }>();
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api<Booking>(`/bookings/${params.id}`).then(setBooking);
+    api<Booking>(`/bookings/${params.id}`).then(setBooking).finally(() => setLoading(false));
   }, [params.id]);
 
   return (
@@ -31,7 +33,11 @@ export default function ConfirmationPage() {
           <h1 className="mt-2 text-4xl font-bold text-calendly-navy">You are scheduled</h1>
           <p className="mt-3 text-sm leading-6 text-calendly-muted">A calendar invitation can be sent from the notification provider configured for production.</p>
         </div>
-        {booking && (
+        {loading ? (
+          <div className="mt-8 grid min-h-[120px] place-items-center">
+            <CalendlyShimmer />
+          </div>
+        ) : booking && (
           <div className="mt-8 grid gap-4">
             <Card>
               <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">

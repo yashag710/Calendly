@@ -32,6 +32,7 @@ import {
 import { api, publicBookingBaseUrl, publicBookingUrl } from "@/lib/api";
 import type { EventType, Schedule } from "@/types";
 import { Button } from "@/components/ui/button";
+import { CalendlyShimmer } from "@/components/CalendlyShimmer";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -1156,6 +1157,7 @@ export default function EventTypesPage() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventType | null>(null);
   const [creating, setCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<EventDraft>({
     name: "New Meeting",
     slug: "new-meeting",
@@ -1177,12 +1179,17 @@ export default function EventTypesPage() {
   }, [eventTypes, query]);
 
   async function load() {
-    const [events, scheduleData] = await Promise.all([
-      api<EventType[]>("/event-types"),
-      api<Schedule[]>("/availability")
-    ]);
-    setEventTypes(events);
-    setSchedules(scheduleData);
+    setLoading(true);
+    try {
+      const [events, scheduleData] = await Promise.all([
+        api<EventType[]>("/event-types"),
+        api<Schedule[]>("/availability")
+      ]);
+      setEventTypes(events);
+      setSchedules(scheduleData);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -1376,7 +1383,11 @@ export default function EventTypesPage() {
             </div>
 
             <div className="mt-5 grid gap-5">
-              {displayEvents.map((eventType) => (
+              {loading ? (
+                <div className="grid min-h-[240px] place-items-center rounded-lg border border-[#d7e2ee] bg-white shadow-sm">
+                  <CalendlyShimmer />
+                </div>
+              ) : displayEvents.map((eventType) => (
                 <EventRow
                   key={eventType.id}
                   eventType={eventType}
@@ -1386,7 +1397,7 @@ export default function EventTypesPage() {
                   onSelect={toggleSelected}
                 />
               ))}
-              {!displayEvents.length && (
+              {!loading && !displayEvents.length && (
                 <EventRow
                   eventType={{
                     id: "empty",

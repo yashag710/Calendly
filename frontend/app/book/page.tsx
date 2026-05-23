@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { CalendlyShimmer } from "@/components/CalendlyShimmer";
 import { api } from "@/lib/api";
 import type { EventType } from "@/types";
 
@@ -18,9 +19,13 @@ function CornerRibbon() {
 
 export default function PublicLandingPage() {
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api<EventType[]>("/event-types").then((events) => setEventTypes(events.filter((eventType) => eventType.isActive))).catch(() => setEventTypes([]));
+    api<EventType[]>("/event-types")
+      .then((events) => setEventTypes(events.filter((eventType) => eventType.isActive)))
+      .catch(() => setEventTypes([]))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -36,7 +41,11 @@ export default function PublicLandingPage() {
         </div>
 
         <div className="mx-auto mt-14 grid max-w-[920px] gap-x-12 gap-y-8 px-8 md:grid-cols-2">
-          {eventTypes.map((eventType) => (
+          {loading ? (
+            <div className="col-span-full grid min-h-[180px] place-items-center border-t border-[#d7e2ee]">
+              <CalendlyShimmer />
+            </div>
+          ) : eventTypes.map((eventType) => (
             <Link
               key={eventType.id}
               href={`/book/${eventType.slug}`}
@@ -49,7 +58,7 @@ export default function PublicLandingPage() {
               <ChevronRight className="size-7 shrink-0 fill-[#0b3558] text-[#0b3558] transition group-hover:translate-x-1 group-hover:text-[#006bff]" />
             </Link>
           ))}
-          {!eventTypes.length && (
+          {!loading && !eventTypes.length && (
             <p className="border-t border-[#d7e2ee] px-7 py-8 text-left text-[16px] font-semibold text-[#6b83a1]">
               No event types are available.
             </p>

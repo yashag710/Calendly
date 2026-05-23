@@ -46,3 +46,96 @@ textarea {
 ::selection {
   @apply bg-blue-100 text-calendly-navy;
 }
+
+.calendly-shimmer-loader {
+  position: relative;
+  display: inline-block;
+  width: 90px;
+  height: 34px;
+}
+
+.calendly-shimmer-block {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-block;
+  overflow: hidden;
+  width: 18px;
+  height: 18px;
+  border-radius: 7px;
+  background: #496f93;
+  box-shadow: 0 2px 5px rgb(11 53 88 / 12%);
+  transform: translate(-50%, -50%);
+  animation: calendly-loader-carousel 1.08s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  will-change: left, width, height, border-radius, opacity, transform;
+}
+
+.calendly-shimmer-block::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 34%) 48%, transparent 100%);
+  transform: translateX(-140%);
+  animation: calendly-shimmer-sweep 1.08s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+.calendly-shimmer-block:nth-child(1) {
+  animation-delay: -0.72s;
+}
+
+.calendly-shimmer-block:nth-child(1)::after {
+  animation-delay: -0.72s;
+}
+
+.calendly-shimmer-block:nth-child(2) {
+  animation-delay: -0.36s;
+}
+
+.calendly-shimmer-block:nth-child(2)::after {
+  animation-delay: -0.36s;
+}
+
+@keyframes calendly-shimmer-sweep {
+  0% {
+    transform: translateX(-140%);
+  }
+  58%,
+  100% {
+    transform: translateX(140%);
+  }
+}
+
+@keyframes calendly-loader-carousel {
+  0%,
+  100% {
+    left: 19px;
+    width: 18px;
+    height: 18px;
+    border-radius: 7px;
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+  33.333% {
+    left: 45px;
+    width: 32px;
+    height: 28px;
+    border-radius: 10px;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  66.666% {
+    left: 71px;
+    width: 18px;
+    height: 18px;
+    border-radius: 7px;
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendly-shimmer-block,
+  .calendly-shimmer-block::after {
+    animation: none;
+  }
+}

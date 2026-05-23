@@ -22,6 +22,7 @@ import {
 import { api } from "@/lib/api";
 import type { Booking } from "@/types";
 import { Button } from "@/components/ui/button";
+import { CalendlyShimmer } from "@/components/CalendlyShimmer";
 import { cn } from "@/lib/utils";
 
 function formatMeetingDate(value: string) {
@@ -80,7 +81,7 @@ function exportMeetingsCsv(meetings: Booking[]) {
 
 function UnderlineText({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("border-b-2 border-transparent leading-5 group-hover:border-[#006bff]", className)}>
+    <span className={cn("border-b-2 border-transparent leading-5", className)}>
       {children}
     </span>
   );
@@ -241,6 +242,7 @@ export default function MeetingsPage() {
   const [dateOpen, setDateOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load(nextPeriod = period) {
     const params = new URLSearchParams({ period: nextPeriod });
@@ -248,7 +250,14 @@ export default function MeetingsPage() {
       params.set("from", dateRange.from);
       params.set("to", dateRange.to);
     }
-    setMeetings(await api<Booking[]>(`/meetings?${params.toString()}`));
+    setLoading(true);
+    try {
+      setMeetings(await api<Booking[]>(`/meetings?${params.toString()}`));
+    } catch {
+      setMeetings([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -358,7 +367,11 @@ export default function MeetingsPage() {
 
           {filtersOpen && <FilterRow />}
 
-          {period === "past" ? (
+          {loading ? (
+            <div className="grid min-h-[315px] place-items-center">
+              <CalendlyShimmer />
+            </div>
+          ) : period === "past" ? (
             <div className="grid min-h-[315px] place-items-center">
               <div className="text-center">
                 <EmptyCalendarGraphic />

@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EventTypeForm } from "@/components/EventTypeForm";
+import { CalendlyShimmer } from "@/components/CalendlyShimmer";
 import { api } from "@/lib/api";
 import type { EventType, Schedule } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,15 +13,17 @@ export default function EditEventTypePage() {
   const router = useRouter();
   const [eventType, setEventType] = useState<EventType | null>(null);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       api<EventType>(`/event-types/${params.id}`),
       api<Schedule[]>("/availability")
     ]).then(([eventData, scheduleData]) => {
       setEventType(eventData);
       setSchedules(scheduleData);
-    });
+    }).finally(() => setLoading(false));
   }, [params.id]);
 
   return (
@@ -39,7 +42,11 @@ export default function EditEventTypePage() {
           <CardDescription>Update this booking page, availability schedule, buffers, and invitee questions.</CardDescription>
         </CardHeader>
         <CardContent>
-        {eventType && (
+        {loading ? (
+          <div className="grid min-h-[260px] place-items-center">
+            <CalendlyShimmer />
+          </div>
+        ) : eventType && (
           <EventTypeForm
             initial={eventType}
             schedules={schedules}

@@ -19,6 +19,7 @@ import { api, publicBookingUrl } from "@/lib/api";
 import { buildMonth, isoDate, monthLabel } from "@/lib/date";
 import type { Booking, EventType, Slot } from "@/types";
 import { Button } from "@/components/ui/button";
+import { CalendlyShimmer } from "@/components/CalendlyShimmer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -125,6 +126,8 @@ export default function BookingPage() {
   const [rescheduleToken, setRescheduleToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [timezone, setTimezone] = useState("Asia/Kolkata");
+  const [eventLoading, setEventLoading] = useState(true);
+  const [slotsLoading, setSlotsLoading] = useState(true);
 
   const bookingUrl = useMemo(() => publicBookingUrl(params.slug), [params.slug]);
   const timezoneOptions = useMemo(() => Array.from(new Set([
@@ -137,7 +140,11 @@ export default function BookingPage() {
   ].filter(Boolean))) as string[], [eventType?.schedule?.timezone]);
 
   useEffect(() => {
-    api<EventType>(`/public/${params.slug}`).then(setEventType).catch((error) => setMessage(error.message));
+    setEventLoading(true);
+    api<EventType>(`/public/${params.slug}`)
+      .then(setEventType)
+      .catch((error) => setMessage(error.message))
+      .finally(() => setEventLoading(false));
   }, [params.slug]);
 
   useEffect(() => {
@@ -146,7 +153,11 @@ export default function BookingPage() {
 
   useEffect(() => {
     setSelectedSlot(null);
-    api<Slot[]>(`/public/${params.slug}/slots?date=${date}`).then(setSlots).catch(() => setSlots([]));
+    setSlotsLoading(true);
+    api<Slot[]>(`/public/${params.slug}/slots?date=${date}`)
+      .then(setSlots)
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false));
   }, [params.slug, date]);
 
   useEffect(() => {
@@ -218,7 +229,13 @@ export default function BookingPage() {
               </button>
             )}
             <p className="text-[17px] font-bold text-[#777]">{eventType?.user?.name ?? "Yash Agarwal"}</p>
-            <h1 className="mt-2 text-[30px] font-bold leading-tight tracking-normal text-[#0b0f1a]">{eventType?.name ?? "Loading..."}</h1>
+            {eventLoading ? (
+              <div className="mt-2 flex h-[42px] items-center">
+                <CalendlyShimmer />
+              </div>
+            ) : (
+              <h1 className="mt-2 text-[30px] font-bold leading-tight tracking-normal text-[#0b0f1a]">{eventType?.name ?? "Event unavailable"}</h1>
+            )}
             <div className="mt-8 grid gap-5 text-[15px] font-bold text-[#0b3558]">
               <span className="inline-flex items-center gap-3"><Clock3 className="size-5" />{eventType?.durationMinutes ?? 30} min</span>
               {selectedSlot && (
@@ -267,7 +284,11 @@ export default function BookingPage() {
                 <h3 className="mb-8 text-[17px] font-semibold text-[#31516f]">{displayDate(date, timezone)}</h3>
                 <div className="max-h-[590px] overflow-y-auto pr-2">
                   <div className="grid gap-3">
-                    {slots.map((slot) => (
+                    {slotsLoading ? (
+                      <div className="grid min-h-[176px] place-items-center">
+                        <CalendlyShimmer />
+                      </div>
+                    ) : slots.map((slot) => (
                       <button
                         key={slot.startTime}
                         className="h-[58px] rounded border border-[#9bc8ff] bg-white text-[17px] font-bold text-[#006bff] transition hover:border-[#006bff] hover:bg-[#f6fbff]"
@@ -276,7 +297,7 @@ export default function BookingPage() {
                         {displayTimeInZone(slot.startTime, timezone)}
                       </button>
                     ))}
-                    {!slots.length && <p className="rounded-lg bg-[#f6f8fb] p-4 text-sm font-semibold text-[#6b83a1]">No times available for this date.</p>}
+                    {!slotsLoading && !slots.length && <p className="rounded-lg bg-[#f6f8fb] p-4 text-sm font-semibold text-[#6b83a1]">No times available for this date.</p>}
                   </div>
                 </div>
               </div>
@@ -294,7 +315,6 @@ export default function BookingPage() {
                   <Label className="font-bold text-[#0b3558]">Email *</Label>
                   <Input className="h-11 border-[#c5d2e0]" type="email" value={form.inviteeEmail} onChange={(event) => setForm({ ...form, inviteeEmail: event.target.value })} required />
                 </div>
-                <Button type="button" variant="outline" className="mt-4 h-9 rounded-full border-[#006bff] bg-white px-4 text-[15px] font-bold text-[#006bff]">Add Guests</Button>
 
                 {(eventType?.customQuestions.length ? eventType.customQuestions : [{ id: "fallback", label: "Please share anything that will help prepare for our meeting.", required: false }]).map((question) => (
                   <div className="mt-7 grid gap-2" key={question.id}>
