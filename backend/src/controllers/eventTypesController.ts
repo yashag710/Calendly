@@ -35,6 +35,18 @@ async function withEventTypeColor<T extends { id: string }>(eventType: T) {
   return { ...eventType, color: colors.get(eventType.id) ?? "#8247f5" };
 }
 
+async function uniqueSlug(slug: string) {
+  let candidate = slug;
+  let suffix = 2;
+
+  while (await prisma.eventType.findUnique({ where: { slug: candidate }, select: { id: true } })) {
+    candidate = `${slug}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
 export async function listEventTypes() {
   const user = await getDefaultUser();
   const eventTypes = await prisma.eventType.findMany({
@@ -59,13 +71,14 @@ export async function createEventType(input: unknown) {
   const user = await getDefaultUser();
   const data = eventTypeSchema.parse(input);
   const scheduleId = data.scheduleId ?? (await prisma.availabilitySchedule.findFirst({ where: { userId: user.id, isDefault: true } }))?.id;
+  const slug = await uniqueSlug(data.slug);
 
   const eventType = await prisma.eventType.create({
     data: {
       userId: user.id,
       scheduleId,
       name: data.name,
-      slug: data.slug,
+      slug,
       description: data.description,
       location: data.location,
       durationMinutes: data.durationMinutes,

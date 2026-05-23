@@ -11,7 +11,15 @@ import { errorHandler } from "./utils/http.js";
 export const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: env.corsOrigin }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || env.corsOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("Not allowed by CORS"));
+  }
+}));
 app.use(express.json());
 app.use(morgan("dev"));
 
@@ -24,4 +32,3 @@ app.use("/api/availability", availabilityRouter);
 app.use("/api", bookingRouter);
 
 app.use(errorHandler);
-

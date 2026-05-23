@@ -11,13 +11,15 @@ import {
   MoreVertical,
   Plus,
   Save,
+  Trash2,
   Users,
   X
 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AvailabilityRule, DateOverride, Schedule } from "@/types";
+import type { AvailabilityRule, DateOverride, EventType, Schedule } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const days = [
   ["S", "Sunday", 7],
@@ -44,21 +46,33 @@ function toDisplayTime(value: string) {
 
 export default function AvailabilityPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const selected = useMemo(() => schedules.find((schedule) => schedule.id === selectedId), [schedules, selectedId]);
   const [draft, setDraft] = useState({ name: "Working hours", timezone: "Asia/Kolkata", isDefault: true, rules: defaultRules, overrides: [] as DateOverride[] });
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const activeEventCount = eventTypes.filter((eventType) => eventType.scheduleId === selectedId).length;
 
   async function load() {
-    const data = await api<Schedule[]>("/availability");
+    const [data, events] = await Promise.all([
+      api<Schedule[]>("/availability"),
+      api<EventType[]>("/event-types")
+    ]);
     setSchedules(data);
-    setSelectedId(data[0]?.id ?? "");
-    if (data[0]) {
+    setEventTypes(events);
+    const nextSelected = selectedId && data.some((schedule) => schedule.id === selectedId) ? selectedId : data[0]?.id ?? "";
+    setSelectedId(nextSelected);
+    const selectedSchedule = data.find((schedule) => schedule.id === nextSelected) ?? data[0];
+    if (selectedSchedule) {
       setDraft({
-        name: data[0].name,
-        timezone: data[0].timezone,
-        isDefault: data[0].isDefault,
-        rules: data[0].rules,
-        overrides: data[0].overrides.map((item) => ({ ...item, date: String(item.date).slice(0, 10) }))
+        name: selectedSchedule.name,
+        timezone: selectedSchedule.timezone,
+        isDefault: selectedSchedule.isDefault,
+        rules: selectedSchedule.rules,
+        overrides: selectedSchedule.overrides.map((item) => ({ ...item, date: String(item.date).slice(0, 10) }))
       });
     }
   }
@@ -95,13 +109,57 @@ export default function AvailabilityPage() {
     });
   }
 
-  async function save() {
-    if (selectedId) {
-      await api(`/availability/${selectedId}`, { method: "PUT", body: JSON.stringify(draft) });
-    } else {
-      await api("/availability", { method: "POST", body: JSON.stringify(draft) });
-    }
+  function copyRuleToWeekdays(source: AvailabilityRule) {
+    const weekdays = [1, 2, 3, 4, 5];
+    const existingByDay = new Map(draft.rules.map((rule) => [rule.dayOfWeek, rule]));
+    setDraft({
+      ...draft,
+      rules: [
+        ...draft.rules.filter((rule) => !weekdays.includes(rule.dayOfWeek)),
+        ...weekdays.map((dayOfWeek) => ({
+          ...existingByDay.get(dayOfWeek),
+          dayOfWeek,
+          startTime: source.startTime,
+          endTime: source.endTime
+        }))
+      ].sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+    });
+  }
+
+  async function createSchedule() {
+    const name = `Working hours ${schedules.length + 1}`;
+    await api("/availability", {
+      method: "POST",
+      body: JSON.stringify({ name, timezone: draft.timezone, isDefault: false, rules: defaultRules, overrides: [] })
+    });
+    setMenuOpen(false);
     await load();
+  }
+
+  async function deleteSchedule() {
+    if (!selectedId || schedules.length <= 1) return;
+    await api(`/availability/${selectedId}`, { method: "DELETE" });
+    setMenuOpen(false);
+    setSelectedId("");
+    await load();
+  }
+
+  async function save() {
+    setSaving(true);
+    setMessage("");
+    try {
+      if (selectedId) {
+        await api(`/availability/${selectedId}`, { method: "PUT", body: JSON.stringify(draft) });
+      } else {
+        await api("/availability", { method: "POST", body: JSON.stringify(draft) });
+      }
+      await load();
+      setMessage("Schedule saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to save schedule.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -115,23 +173,10 @@ export default function AvailabilityPage() {
         </header>
 
         <div className="mx-auto max-w-[1280px] px-4 pb-16 pt-6 sm:px-6 lg:pt-8">
-          <div className="mb-9 flex flex-col gap-4 rounded-lg border border-[#5d9cff] bg-[#eaf3ff] px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-[15px] font-bold text-[#0b3558]">Review our updated Terms of Use</p>
-              <p className="mt-1 text-[15px] font-medium text-[#31516f]">We&apos;ve updated our Terms of Use to reflect how Calendly works today. Take a moment to review what&apos;s changed.</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-4">
-              <button className="text-[15px] font-bold text-[#0b3558]">Review terms</button>
-              <Button className="h-10 rounded-full px-5 font-bold">Accept terms</Button>
-            </div>
-          </div>
-
           <div className="mb-7">
             <h1 className="text-[26px] font-bold tracking-normal text-[#0b3558]">Availability</h1>
             <div className="mt-7 flex gap-6 overflow-x-auto border-b border-[#d7e2ee] text-[15px] font-bold text-[#55708d] sm:gap-9">
               <button className="border-b-[3px] border-[#006bff] pb-5 text-[#0b3558]">Schedules</button>
-              <button className="pb-5">Calendar settings</button>
-              <button className="pb-5">Advanced settings</button>
             </div>
           </div>
 
@@ -140,50 +185,73 @@ export default function AvailabilityPage() {
               <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                 <div>
                   <p className="text-[15px] font-bold text-[#55708d]">Schedule</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <select
-                      className="max-w-[360px] bg-transparent text-[21px] font-bold text-[#005bcf] outline-none"
-                      value={selectedId}
-                      onChange={(event) => setSelectedId(event.target.value)}
-                    >
-                      {schedules.map((schedule) => (
-                        <option key={schedule.id} value={schedule.id}>
-                          {schedule.name}{schedule.isDefault ? " (default)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="size-4 text-[#005bcf]" />
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <Input
+                      className="h-11 max-w-[300px] border-[#d7e2ee] text-[16px] font-bold text-[#0b3558]"
+                      value={draft.name}
+                      onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                      aria-label="Schedule name"
+                    />
                   </div>
-                  <div className="mt-5 flex items-center gap-2 text-[15px] font-bold text-[#0b3558]">
+                  <div className="mt-5 flex flex-wrap items-center gap-3 text-[15px] font-bold text-[#0b3558]">
                     <span>Active on:</span>
                     <Info className="size-5 fill-[#0b3558] text-white" />
-                    <span className="text-[#006bff]">0 event types</span>
+                    <span className="text-[#006bff]">{activeEventCount} event type{activeEventCount === 1 ? "" : "s"}</span>
                     <ChevronDown className="size-4 text-[#006bff]" />
+                    <label className="ml-0 flex items-center gap-2 text-[#55708d] md:ml-3">
+                      Time zone
+                      <select
+                        className="rounded-md border border-[#d7e2ee] bg-white px-3 py-2 font-bold text-[#0b3558] outline-none"
+                        value={draft.timezone}
+                        onChange={(event) => setDraft({ ...draft, timezone: event.target.value })}
+                      >
+                        {["Asia/Kolkata", "UTC", "America/New_York", "Europe/London"].map((timezone) => (
+                          <option key={timezone} value={timezone}>{timezone}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-5">
                   <div className="flex rounded-lg bg-[#eaf1fa] p-1">
-                    <button className="flex h-10 items-center gap-2 rounded-md bg-white px-4 text-[15px] font-bold text-[#0b3558] shadow-md">
+                    <button
+                      className={cn("flex h-10 items-center gap-2 rounded-md px-4 text-[15px] font-bold", view === "list" ? "bg-white text-[#0b3558] shadow-md" : "text-[#55708d]")}
+                      onClick={() => setView("list")}
+                    >
                       <List className="size-5" />
                       List
                     </button>
-                    <button className="flex h-10 items-center gap-2 rounded-md px-4 text-[15px] font-bold text-[#55708d]">
+                    <button
+                      className={cn("flex h-10 items-center gap-2 rounded-md px-4 text-[15px] font-bold", view === "calendar" ? "bg-white text-[#0b3558] shadow-md" : "text-[#55708d]")}
+                      onClick={() => setView("calendar")}
+                    >
                       <Calendar className="size-5" />
                       Calendar
                     </button>
                   </div>
-                  <MoreVertical className="size-6 text-[#0b3558]" />
+                  <div className="relative">
+                    <button className="grid size-9 place-items-center rounded-full text-[#0b3558] hover:bg-[#eaf3ff]" onClick={() => setMenuOpen((value) => !value)} aria-label="Schedule menu">
+                      <MoreVertical className="size-6" />
+                    </button>
+                    {menuOpen && (
+                      <div className="absolute right-0 top-11 z-20 w-48 overflow-hidden rounded-md border border-[#d7e2ee] bg-white py-2 text-[15px] font-bold text-[#0b3558] shadow-xl">
+                        <button className="block w-full px-4 py-2 text-left hover:bg-[#f1f6ff]" onClick={createSchedule}>New schedule</button>
+                        <button className="block w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 disabled:text-[#91a7bf]" disabled={schedules.length <= 1} onClick={deleteSchedule}>Delete schedule</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center gap-3 rounded-md border border-[#d9984d] bg-[#ffe6b8] px-5 py-4 text-[15px] font-bold text-[#0b3558]">
+              {activeEventCount === 0 && <div className="mt-6 flex items-center gap-3 rounded-md border border-[#d9984d] bg-[#ffe6b8] px-5 py-4 text-[15px] font-bold text-[#0b3558]">
                 <Info className="size-5 fill-[#0b3558] text-[#ffe6b8]" />
                 Apply this saved schedule to at least one event type to use these hours
-              </div>
+              </div>}
             </div>
 
-            <div className="grid min-h-[520px] gap-10 px-4 py-7 sm:px-8 sm:py-9 xl:grid-cols-[600px_1fr]">
+            {view === "list" ? <div className="overflow-x-auto">
+              <div className="grid min-h-[520px] min-w-[1240px] gap-12 px-4 py-7 pr-12 sm:px-8 sm:py-9 sm:pr-16 xl:grid-cols-[minmax(640px,0.9fr)_minmax(520px,1fr)]">
               <section>
                 <div className="mb-7 flex items-start gap-3">
                   <Clock3 className="mt-1 size-5 text-[#0b3558]" />
@@ -197,10 +265,10 @@ export default function AvailabilityPage() {
                   {days.map(([short, label, dayOfWeek]) => {
                     const rule = draft.rules.find((item) => item.dayOfWeek === dayOfWeek);
                     return (
-                      <div key={label} className="grid grid-cols-[32px_1fr] items-center gap-4">
+                      <div key={label} className="grid grid-cols-[32px_minmax(0,1fr)] items-center gap-4">
                         <button
                           onClick={() => setDay(dayOfWeek, !rule)}
-                          className="grid size-8 place-items-center rounded-full bg-[#0b3558] text-[13px] font-bold text-white"
+                          className={cn("grid size-8 place-items-center rounded-full text-[13px] font-bold", rule ? "bg-[#0b3558] text-white" : "bg-[#eef3fb] text-[#55708d]")}
                           title={label}
                         >
                           {short}
@@ -214,28 +282,28 @@ export default function AvailabilityPage() {
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-3">
+                          <div className="flex min-w-0 flex-wrap items-center gap-3">
                             <Input
-                              className="h-[44px] w-[104px] border-0 bg-[#f7f8fb] text-center text-[15px] font-bold text-[#0b3558] shadow-none"
+                              className="h-[44px] w-[136px] shrink-0 border-0 bg-[#f7f8fb] px-3 text-center text-[15px] font-bold text-[#0b3558] shadow-none"
                               type="time"
                               value={rule.startTime}
                               onChange={(event) => updateRule(dayOfWeek, "startTime", event.target.value)}
                             />
                             <span className="text-[#6b83a1]">-</span>
                             <Input
-                              className="h-[44px] w-[104px] border-0 bg-[#f7f8fb] text-center text-[15px] font-bold text-[#0b3558] shadow-none"
+                              className="h-[44px] w-[136px] shrink-0 border-0 bg-[#f7f8fb] px-3 text-center text-[15px] font-bold text-[#0b3558] shadow-none"
                               type="time"
                               value={rule.endTime}
                               onChange={(event) => updateRule(dayOfWeek, "endTime", event.target.value)}
                             />
-                            <span className="hidden text-sm text-[#6b83a1] md:inline">{toDisplayTime(rule.startTime)} - {toDisplayTime(rule.endTime)}</span>
-                            <button onClick={() => setDay(dayOfWeek, false)} className="grid size-8 place-items-center text-[#55708d]">
+                            <span className="min-w-[132px] text-sm text-[#6b83a1]">{toDisplayTime(rule.startTime)} - {toDisplayTime(rule.endTime)}</span>
+                            <button onClick={() => setDay(dayOfWeek, false)} className="grid size-8 place-items-center rounded-full text-[#55708d] hover:bg-[#eaf3ff]" aria-label={`Remove ${label} hours`}>
                               <X className="size-5" />
                             </button>
-                            <button onClick={() => setDay(dayOfWeek, true)} className="grid size-8 place-items-center text-[#55708d]">
+                            <button onClick={() => setDay(dayOfWeek, true)} className="grid size-8 place-items-center rounded-full text-[#55708d] hover:bg-[#eaf3ff]" aria-label={`Enable ${label}`}>
                               <Plus className="size-5 rounded-full border-2 border-current p-0.5" />
                             </button>
-                            <button className="grid size-8 place-items-center text-[#55708d]">
+                            <button className="grid size-8 place-items-center rounded-full text-[#55708d] hover:bg-[#eaf3ff]" onClick={() => copyRuleToWeekdays(rule)} aria-label={`Copy ${label} hours to weekdays`}>
                               <Copy className="size-5" />
                             </button>
                           </div>
@@ -270,44 +338,79 @@ export default function AvailabilityPage() {
 
                 <div className="grid gap-3">
                   {draft.overrides.map((override, index) => (
-                    <div key={index} className="grid gap-3 rounded-lg border border-[#d7e2ee] p-4 lg:grid-cols-[160px_170px_1fr]">
-                      <Input type="date" value={override.date} onChange={(event) => {
+                    <div key={index} className="grid gap-3 rounded-lg border border-[#d7e2ee] p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input type="date" value={override.date} onChange={(event) => {
                         const next = [...draft.overrides];
                         next[index] = { ...override, date: event.target.value };
                         setDraft({ ...draft, overrides: next });
                       }} />
-                      <select className="h-11 rounded-md border border-[#d7e2ee] px-3 text-sm font-semibold text-[#0b3558]" value={String(override.isAvailable)} onChange={(event) => {
+                        <select className="h-11 rounded-md border border-[#d7e2ee] px-3 text-sm font-semibold text-[#0b3558]" value={String(override.isAvailable)} onChange={(event) => {
                         const next = [...draft.overrides];
                         next[index] = { ...override, isAvailable: event.target.value === "true" };
                         setDraft({ ...draft, overrides: next });
                       }}>
-                        <option value="true">Custom hours</option>
-                        <option value="false">Unavailable</option>
-                      </select>
-                      {override.isAvailable && (
-                        <div className="flex flex-wrap items-center gap-3">
-                          <Input className="w-32" type="time" value={override.startTime ?? ""} onChange={(event) => {
+                          <option value="true">Custom hours</option>
+                          <option value="false">Unavailable</option>
+                        </select>
+                      </div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-3">
+                        {override.isAvailable && (
+                          <>
+                            <Input className="h-11 min-w-[132px] flex-1" type="time" value={override.startTime ?? ""} onChange={(event) => {
                             const next = [...draft.overrides];
                             next[index] = { ...override, startTime: event.target.value };
                             setDraft({ ...draft, overrides: next });
                           }} />
-                          <Input className="w-32" type="time" value={override.endTime ?? ""} onChange={(event) => {
+                            <Input className="h-11 min-w-[132px] flex-1" type="time" value={override.endTime ?? ""} onChange={(event) => {
                             const next = [...draft.overrides];
                             next[index] = { ...override, endTime: event.target.value };
                             setDraft({ ...draft, overrides: next });
                           }} />
-                        </div>
-                      )}
+                          </>
+                        )}
+                        <button
+                          className="ml-auto grid size-9 shrink-0 place-items-center rounded-full text-[#55708d] hover:bg-red-50 hover:text-red-600"
+                          onClick={() => setDraft({ ...draft, overrides: draft.overrides.filter((_, overrideIndex) => overrideIndex !== index) })}
+                          aria-label="Remove date-specific hours"
+                        >
+                          <Trash2 className="size-5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </section>
-            </div>
+              </div>
+            </div> : (
+              <div className="grid min-h-[520px] gap-4 px-4 py-7 sm:px-8 sm:py-9">
+                <h2 className="text-[21px] font-bold text-[#0b3558]">Weekly calendar view</h2>
+                <div className="grid gap-3 md:grid-cols-7">
+                  {days.map(([short, label, dayOfWeek]) => {
+                    const rule = draft.rules.find((item) => item.dayOfWeek === dayOfWeek);
+                    return (
+                      <div key={label} className="min-h-[140px] rounded-lg border border-[#d7e2ee] p-4">
+                        <div className="mb-4 flex items-center gap-2">
+                          <span className={cn("grid size-8 place-items-center rounded-full text-sm font-bold", rule ? "bg-[#0b3558] text-white" : "bg-[#eef3fb] text-[#55708d]")}>{short}</span>
+                          <p className="font-bold text-[#0b3558]">{label}</p>
+                        </div>
+                        {rule ? (
+                          <p className="rounded-md bg-[#f7f8fb] px-3 py-2 text-sm font-bold text-[#31516f]">{toDisplayTime(rule.startTime)} - {toDisplayTime(rule.endTime)}</p>
+                        ) : (
+                          <p className="text-sm font-semibold text-[#6b83a1]">Unavailable</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end border-t border-[#d7e2ee] px-4 py-5 sm:px-8">
-              <Button onClick={save} className="h-11 rounded-full px-6 text-[15px] font-bold">
+              {message && <p className={cn("mr-auto text-[15px] font-bold", message.includes("saved") ? "text-green-700" : "text-red-600")}>{message}</p>}
+              <Button onClick={save} className="h-11 rounded-full px-6 text-[15px] font-bold" disabled={saving}>
                 <Save className="size-4" />
-                Save schedule
+                {saving ? "Saving..." : "Save schedule"}
               </Button>
             </div>
           </section>
