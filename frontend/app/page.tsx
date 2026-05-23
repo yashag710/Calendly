@@ -87,6 +87,23 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+async function copyText(value: string) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+}
+
 function EventRow({
   eventType,
   muted = false,
@@ -103,6 +120,13 @@ function EventRow({
   onSelect?: (id: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function copyEventLink() {
+    await copyText(publicBookingUrl(eventType.slug));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
 
   return (
     <article
@@ -168,13 +192,13 @@ function EventRow({
           <Button
             variant="outline"
             className="h-10 rounded-full border-[#91a7bf] bg-white px-4 text-[15px] font-bold text-[#0b3558] hover:bg-[#eaf3ff]"
-            onClick={(event) => {
+            onClick={async (event) => {
               event.stopPropagation();
-              navigator.clipboard?.writeText(publicBookingUrl(eventType.slug));
+              await copyEventLink();
             }}
           >
             <Link2 className="size-4" />
-            Copy link
+            {copied ? "Copied" : "Copy link"}
           </Button>
           <Link href={`/book/${eventType.slug}`} target="_blank" rel="noopener noreferrer" className="grid size-9 place-items-center rounded-full text-[#31516f] transition hover:bg-white hover:text-[#006bff] hover:shadow-sm" onClick={(event) => event.stopPropagation()}>
             <ExternalLink className="size-6" />
